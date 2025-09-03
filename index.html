@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <title>FBFribro-TrialFeed</title>
+
+  <style>
+
+    body {
+
+      font-family: Arial, sans-serif;
+
+      background: #f0f2f5;
+
+      margin: 0;
+
+      padding: 0;
+
+    }
+
+    .post {
+
+      background: white;
+
+      margin: 20px auto;
+
+      padding: 15px;
+
+      width: 500px;
+
+      border-radius: 8px;
+
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    }
+
+    .post img {
+
+      max-width: 100%;
+
+      border-radius: 6px;
+
+    }
+
+    .caption {
+
+      margin-top: 8px;
+
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+
+
+<div class="post" data-post-id="1" data-category="example">
+
+  <img src="https://placekitten.com/500/300" alt="Kitten 1">
+
+  <p class="caption">This is a cute kitten. Scroll slowly!</p>
+
+</div>
+
+
+
+<div class="post" data-post-id="2" data-category="example">
+
+  <img src="https://placekitten.com/500/301" alt="Kitten 2">
+
+  <p class="caption">Another kitten with a slightly different vibe.</p>
+
+</div>
+
+
+
+<script>
+
+  // === CONFIG: Replace this with your Apps Script URL ===
+
+  const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwQ_mJ5p_TG_qxRjxVFFlnvamQPhxee9Cyyo3QbUIlblKclSc5aHWp2V7HHsG3Wss8/exec";
+
+
+
+  const dwellData = {};
+
+  const observer = new IntersectionObserver((entries) => {
+
+    const now = Date.now();
+
+    entries.forEach(entry => {
+
+      const id = entry.target.dataset.postId;
+
+      if (!dwellData[id]) {
+
+        dwellData[id] = {
+
+          impressions: 0,
+
+          first_seen: null,
+
+          total_visible_ms: 0,
+
+          last_visible_start: null
+
+        };
+
+      }
+
+      if (entry.isIntersecting) {
+
+        dwellData[id].impressions += 1;
+
+        dwellData[id].first_seen = dwellData[id].first_seen || now;
+
+        dwellData[id].last_visible_start = now;
+
+      } else if (dwellData[id].last_visible_start) {
+
+        dwellData[id].total_visible_ms += now - dwellData[id].last_visible_start;
+
+        dwellData[id].last_visible_start = null;
+
+      }
+
+    });
+
+  }, { threshold: 0.5 });
+
+
+
+  document.querySelectorAll('.post').forEach(post => observer.observe(post));
+
+
+
+  window.addEventListener('beforeunload', () => {
+
+    // finalize any visible posts
+
+    const now = Date.now();
+
+    for (let id in dwellData) {
+
+      if (dwellData[id].last_visible_start) {
+
+        dwellData[id].total_visible_ms += now - dwellData[id].last_visible_start;
+
+        dwellData[id].last_visible_start = null;
+
+      }
+
+    }
+
+
+
+    const rows = Object.keys(dwellData).map(id => ({
+
+      participant_id: "TEST_PARTICIPANT", // Replace dynamically if needed
+
+      post_id: id,
+
+      category: document.querySelector(`[data-post-id="${id}"]`).dataset.category,
+
+      total_visible_ms: dwellData[id].total_visible_ms,
+
+      total_visible_s: (dwellData[id].total_visible_ms / 1000).toFixed(2),
+
+      impressions: dwellData[id].impressions,
+
+      first_seen_ms: dwellData[id].first_seen
+
+    }));
+
+
+
+    navigator.sendBeacon(WEBHOOK_URL, JSON.stringify({ rows }));
+
+  });
+
+</script>
+
+
+
+</body>
+
+</html>
